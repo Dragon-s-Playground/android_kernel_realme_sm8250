@@ -91,20 +91,14 @@
 #include <linux/cache.h>
 #include <linux/rodata_test.h>
 #include <linux/jump_label.h>
-#include <linux/mem_encrypt.h>
 
 #include <asm/io.h>
-#include <asm/bugs.h>
 #include <asm/setup.h>
 #include <asm/sections.h>
 #include <asm/cacheflush.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/initcall.h>
-
-#ifdef OPLUS_FEATURE_PHOENIX
-#include "../drivers/soc/oplus/system/oplus_phoenix/oplus_phoenix.h"
-#endif  //OPLUS_FEATURE_PHOENIX
 
 static int kernel_init(void *);
 
@@ -498,8 +492,6 @@ void __init __weak thread_stack_cache_init(void)
 }
 #endif
 
-void __init __weak mem_encrypt_init(void) { }
-
 bool initcall_debug;
 core_param(initcall_debug, initcall_debug, bool, 0644);
 
@@ -614,11 +606,6 @@ asmlinkage __visible void __init start_kernel(void)
 	trap_init();
 	mm_init();
 
-#ifdef OPLUS_FEATURE_PHOENIX
-	if(phx_set_boot_stage)
-		phx_set_boot_stage(KERNEL_MM_INIT_DONE);
-#endif //OPLUS_FEATURE_PHOENIX
-
 	ftrace_init();
 
 	/* trace_printk can be enabled here */
@@ -690,10 +677,6 @@ asmlinkage __visible void __init start_kernel(void)
 
 	early_boot_irqs_disabled = false;
 	local_irq_enable();
-#ifdef OPLUS_FEATURE_PHOENIX
-	if(phx_set_boot_stage)
-		phx_set_boot_stage(KERNEL_LOCAL_IRQ_ENABLE);
-#endif //OPLUS_FEATURE_PHOENIX
 
 	kmem_cache_init_late();
 
@@ -716,14 +699,6 @@ asmlinkage __visible void __init start_kernel(void)
 	 */
 	locking_selftest();
 
-	/*
-	 * This needs to be called before any devices perform DMA
-	 * operations that might use the SWIOTLB bounce buffers. It will
-	 * mark the bounce buffers as decrypted so that their usage will
-	 * not cause "plain-text" data to be decrypted when accessed.
-	 */
-	mem_encrypt_init();
-
 #ifdef CONFIG_BLK_DEV_INITRD
 	if (initrd_start && !initrd_below_start_ok &&
 	    page_to_pfn(virt_to_page((void *)initrd_start)) < min_low_pfn) {
@@ -742,6 +717,9 @@ asmlinkage __visible void __init start_kernel(void)
 		late_time_init();
 	sched_clock_init();
 	calibrate_delay();
+
+	arch_cpu_finalize_init();
+
 	pid_idr_init();
 	anon_vma_init();
 #ifdef CONFIG_X86
@@ -768,11 +746,6 @@ asmlinkage __visible void __init start_kernel(void)
 	taskstats_init_early();
 	delayacct_init();
 
-#ifdef OPLUS_FEATURE_PHOENIX
-	if(phx_set_boot_stage)
-		phx_set_boot_stage(KERNEL_DELAYACCT_INIT_DONE);
-#endif //OPLUS_FEATURE_PHOENIX
-	check_bugs();
 
 	acpi_subsystem_init();
 	arch_post_acpi_subsys_init();
@@ -1022,18 +995,10 @@ static void __init do_basic_setup(void)
 	cpuset_init_smp();
 	shmem_init();
 	driver_init();
-#ifdef OPLUS_FEATURE_PHOENIX
-	if(phx_set_boot_stage)
-		phx_set_boot_stage(KERNEL_DRIVER_INIT_DONE);
-#endif //OPLUS_FEATURE_PHOENIX
 	init_irq_proc();
 	do_ctors();
 	usermodehelper_enable();
 	do_initcalls();
-#ifdef OPLUS_FEATURE_PHOENIX
-	if(phx_set_boot_stage)
-		phx_set_boot_stage(KERNEL_DO_INITCALLS_DONE);
-#endif //OPLUS_FEATURE_PHOENIX
 }
 
 static void __init do_pre_smp_initcalls(void)
@@ -1138,10 +1103,6 @@ static int __ref kernel_init(void *unused)
 
 	rcu_end_inkernel_boot();
 
-#ifdef OPLUS_FEATURE_PHOENIX
-	if(phx_set_boot_stage)
-		phx_set_boot_stage(KERNEL_INIT_DONE);
-#endif //OPLUS_FEATURE_PHOENIX
 	if (ramdisk_execute_command) {
 		ret = run_init_process(ramdisk_execute_command);
 		if (!ret)
@@ -1208,10 +1169,6 @@ static noinline void __init kernel_init_freeable(void)
 
 	do_basic_setup();
 
-#ifdef OPLUS_FEATURE_PHOENIX
-	if(phx_set_boot_stage)
-		phx_set_boot_stage(KERNEL_DO_BASIC_SETUP_DONE);
-#endif //OPLUS_FEATURE_PHOENIX
 	/* Open the /dev/console on the rootfs, this should never fail */
 	if (ksys_open((const char __user *) "/dev/console", O_RDWR, 0) < 0)
 		pr_err("Warning: unable to open an initial console.\n");
